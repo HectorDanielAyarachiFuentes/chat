@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chat</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+        }
+
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .chat-header {
+            padding: 1rem;
+            background: #1a73e8;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .message {
+            display: flex;
+            gap: 0.5rem;
+            align-items: start;
+            padding: 0.5rem;
+            border-radius: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-content {
+            background: #f0f2f5;
+            padding: 0.5rem 1rem;
+            border-radius: 1rem;
+            max-width: 70%;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .message-username {
+            font-weight: 600;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: #65676b;
+        }
+
+        .chat-input {
+            padding: 1rem;
+            border-top: 1px solid #e4e6eb;
+            background: white;
+        }
+
+        .input-form {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e4e6eb;
+            border-radius: 24px;
+            outline: none;
+            font-size: 1rem;
+        }
+
+        .message-input:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
+        }
+
+        .send-button {
+            padding: 0.75rem 1.5rem;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .send-button:hover {
+            background: #1557b0;
+        }
+
+        .setup-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .setup-form {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .setup-form h2 {
+            margin-bottom: 1.5rem;
+            text-align: center;
+            color: #1a73e8;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #444;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e4e6eb;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .color-option {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .color-option.selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #1a73e8;
+        }
+
+        .join-button {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        .join-button:hover {
+            background: #1557b0;
+        }
+
+        .online-count {
+            background: rgba(255,255,255,0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="setup" class="setup-container">
+            <form id="setupForm" class="setup-form">
+                <h2>Join the Chat</h2>
+                <div class="form-group">
+                    <label for="username">Choose your username</label>
+                    <input type="text" id="username" required placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label>Pick your color</label>
+                    <div id="colorGrid" class="color-grid"></div>
+                </div>
+                <button type="submit" class="join-button">Join Chat</button>
+            </form>
+        </div>
+
+        <div class="chat-container">
+            <header class="chat-header">
+                <div class="flex items-center gap-3">
+                    <h1>Simple Chat</h1>
+                    <span id="onlineCount" class="online-count">0 online</span>
+                </div>
+                <div id="userInfo" class="user-info">
+                    <div id="userAvatar" class="avatar"></div>
+                    <span id="userName"></span>
+                </div>
+            </header>
+            <div id="messages" class="messages"></div>
+            <div class="chat-input">
+                <form id="messageForm" class="input-form">
+                    <input type="text" id="messageInput" class="message-input" placeholder="Type a message..." required>
+                    <button type="submit" class="send-button">Send</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDxkUVyXkXqHzHGQPq-iFCFp_ql_Iqw9Hs",
+            authDomain: "xat-clone-bolt.firebaseapp.com",
+            databaseURL: "https://xat-clone-bolt-default-rtdb.firebaseio.com",
+            projectId: "xat-clone-bolt",
+            storageBucket: "xat-clone-bolt.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abc123def456ghi789jkl"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const COLORS = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD',
+            '#D4A5A5', '#9B59B6', '#3498DB', '#E67E22', '#1ABC9C'
+        ];
+
+        let currentUser = null;
+        let userRef = null;
+
+        // Initialize color grid
+        const colorGrid = document.getElementById('colorGrid');
+        COLORS.forEach(color => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'color-option';
+            button.style.backgroundColor = color;
+            button.onclick = () => selectColor(color, button);
+            colorGrid.appendChild(button);
+        });
+
+        let selectedColorButton = colorGrid.firstElementChild;
+        selectedColorButton.classList.add('selected');
+        let selectedColor = COLORS[0];
+
+        function selectColor(color, button) {
+            selectedColorButton?.classList.remove('selected');
+            button.classList.add('selected');
+            selectedColorButton = button;
+            selectedColor = color;
+        }
+
+        // Setup form handling
+        document.getElementById('setupForm').onsubmit = (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            if (username) {
+                currentUser = { username, color: selectedColor };
+                localStorage.setItem('chatUser', JSON.stringify(currentUser));
+                document.getElementById('setup').style.display = 'none';
+                updateUserInfo();
+                setupPresence();
+            }
+        };
+
+        // Check for existing user
+        const savedUser = localStorage.getItem('chatUser');
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+            document.getElementById('setup').style.display = 'none';
+            updateUserInfo();
+            setupPresence();
+        }
+
+        function updateUserInfo() {
+            const avatar = document.getElementById('userAvatar');
+            const userName = document.getElementById('userName');
+            avatar.style.backgroundColor = currentUser.color;
+            avatar.textContent = currentUser.username[0].toUpperCase();
+            userName.textContent = currentUser.username;
+        }
+
+        // Online presence system
+        function setupPresence() {
+            if (!currentUser) return;
+
+            // Create a reference to this user's presence
+            userRef = database.ref(`presence/${btoa(currentUser.username)}`);
+
+            // Add this device to the presence list when online
+            const connectionRef = database.ref('.info/connected');
+            connectionRef.on('value', (snap) => {
+                if (snap.val() === true && currentUser) {
+                    // Remove the user from the presence list when they disconnect
+                    userRef.onDisconnect().remove();
+
+                    // Add user to presence list
+                    userRef.set({
+                        username: currentUser.username,
+                        color: currentUser.color,
+                        lastOnline: firebase.database.ServerValue.TIMESTAMP
+                    });
+                }
+            });
+
+            // Update online users count
+            const presenceRef = database.ref('presence');
+            presenceRef.on('value', (snap) => {
+                const count = snap.numChildren();
+                document.getElementById('onlineCount').textContent = `${count} online`;
+            });
+        }
+
+        // Message handling
+        const messagesContainer = document.getElementById('messages');
+
+        function displayMessage(message) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.style.backgroundColor = message.color;
+            avatar.textContent = message.username[0].toUpperCase();
+
+            const content = document.createElement('div');
+            content.className = 'message-content';
+
+            const header = document.createElement('div');
+            header.className = 'message-header';
+
+            const username = document.createElement('span');
+            username.className = 'message-username';
+            username.style.color = message.color;
+            username.textContent = message.username;
+
+            const time = document.createElement('span');
+            time.className = 'message-time';
+            const messageTime = new Date(message.timestamp);
+            time.textContent = messageTime.toLocaleTimeString();
+
+            const text = document.createElement('div');
+            text.textContent = message.content;
+
+            header.appendChild(username);
+            header.appendChild(time);
+            content.appendChild(header);
+            content.appendChild(text);
+
+            messageEl.appendChild(avatar);
+            messageEl.appendChild(content);
+
+            messagesContainer.appendChild(messageEl);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Listen for new messages
+        const messagesRef = database.ref('messages');
+        messagesRef.on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            displayMessage({
+                ...message,
+                id: snapshot.key
+            });
+        });
+
+        // Handle new messages
+        document.getElementById('messageForm').onsubmit = (e) => {
+            e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (content && currentUser) {
+                messagesRef.push({
+                    username: currentUser.username,
+                    content,
+                    color: currentUser.color,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+                input.value = '';
+            }
+        };
+
+        // Clean up presence when window is closed
+        window.addEventListener('beforeunload', () => {
+            if (userRef) {
+                userRef.remove();
+            }
+        });
+    </script>
+</body>
+</html>
